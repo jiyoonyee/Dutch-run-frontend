@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import playerImg from "./assets/kirbyRunSlide.png";
 import backgroundImg from "./assets/backimg.png";
 import groundImg from "./assets/groundTile.png";
+import obstacleImg from "./assets/obstacle.png";
 
 const config = {
   type: Phaser.AUTO,
@@ -33,6 +34,7 @@ let jumpCount = 0;
 function preload() {
   this.load.image("background", backgroundImg);
   this.load.image("ground", groundImg);
+  this.load.image("obstacle", obstacleImg);
 
   this.load.spritesheet("player", playerImg, {
     frameWidth: 128,
@@ -40,29 +42,21 @@ function preload() {
   });
 }
 
-let backgrounds;
+let obstacles;
+let background;
 // 배경과 바닥의 스크롤 속도를 각각 다르게 설정합니다.
 const backgroundScrollSpeed = 2; // 배경이 움직이는 속도
 const groundScrollSpeed = 10; // 바닥이 움직이는 속도
 
 function create() {
-  // 배경을 나란히 배치하여 무한 스크롤 준비
-  backgrounds = [];
-  const scale =
-    config.height / this.textures.get("background").source[0].height;
-  const bgWidth = this.textures.get("background").source[0].width * scale;
-
-  for (let i = 0; i < 4; i++) {
-    const bg = this.add
-      .image(i * bgWidth, 0, "background")
-      .setOrigin(0, 0)
-      .setScale(scale);
-    backgrounds.push(bg);
-  }
-
-  // 배경 이미지 반전
-  backgrounds[0].setFlipX(true);
-  backgrounds[2].setFlipX(true);
+  background = this.add
+    .tileSprite(0, 0, config.width, config.height, "background")
+    .setOrigin(0, 0);
+  const bgImage = this.textures.get("background").getSourceImage();
+  const scaleX = config.width / bgImage.width;
+  const scaleY = config.height / bgImage.height;
+  const scale = Math.max(scaleX, scaleY);
+  background.setScale(scale).setScrollFactor(0);
 
   cursors = this.input.keyboard.createCursorKeys();
 
@@ -96,6 +90,18 @@ function create() {
     jumpCount = 0;
   });
 
+  obstacles = this.physics.add.group();
+
+  // 일정 시간마다 장애물 생성 (2초 간격)
+  this.time.addEvent({
+    delay: 2000, // ms 단위
+    callback: spawnObstacle,
+    callbackScope: this,
+    loop: true,
+  });
+
+  // 플레이어와 장애물 충돌 처리
+  this.physics.add.collider(player, obstacles, hitObstacle, null, this);
   this.anims.create({
     key: "run",
     frames: this.anims.generateFrameNumbers("player", { start: 0, end: 9 }),
@@ -117,17 +123,37 @@ function create() {
   });
 }
 
+function spawnObstacle() {
+  const x = config.width + 100;
+  const y = config.height - 100;
+
+  const obstacle = obstacles.create(x, y, "obstacle"); // ✅ key 사용
+  obstacle.setOrigin(0.5, 0.5);
+  obstacle.setDisplaySize(60, 100);
+  obstacle.body.allowGravity = false;
+  obstacle.setVelocityX(-500);
+}
+
+// 충돌했을 때 실행할 함수
+function hitObstacle(player, obstacle) {
+  console.log("장애물에 부딪힘!");
+  this.physics.pause(); // 게임 정지
+  player.setTint(0xff0000); // 플레이어 빨간색으로 변함
+  player.anims.stop();
+}
+
 function update() {
   // Move the background to the left.
-  const bgWidth = backgrounds[0].displayWidth;
-  backgrounds.forEach((bg) => {
-    bg.x -= backgroundScrollSpeed;
-    // When the image goes off-screen, move it to the end.
-    if (bg.x + bgWidth <= 0) {
-      bg.x += bgWidth * backgrounds.length;
-    }
-  });
+  // const bgWidth = backgrounds[0].displayWidth;
+  // backgrounds.forEach((bg) => {
+  //   bg.x -= backgroundScrollSpeed;
+  //   // When the image goes off-screen, move it to the end.
+  //   if (bg.x + bgWidth <= 0) {
+  //     bg.x += bgWidth * backgrounds.length;
+  //   }
+  // });
 
+  background.tilePositionX += backgroundScrollSpeed;
   // ---
   // Scroll the ground tiles.
   const TILE_WIDTH = 120;
