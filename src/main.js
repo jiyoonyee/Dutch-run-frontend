@@ -36,6 +36,9 @@ let score = 0;
 let scoreText;
 let gameOver = false;
 
+let jumpButton;
+let slideButton;
+
 const BACKGROUND_SCROLL_SPEED = 2;
 const GROUND_SCROLL_SPEED = 600; // px/sec (속도 일치용)
 
@@ -66,7 +69,7 @@ function create() {
   // 바닥
   groundTiles = this.physics.add.staticGroup();
   const TILE_WIDTH = 120;
-  const TILE_HEIGHT = 60;
+  const TILE_HEIGHT = 100;
   const numTiles = Math.ceil(config.width / TILE_WIDTH) + 2;
   for (let i = 0; i < numTiles; i++) {
     const tile = groundTiles.create(
@@ -107,6 +110,50 @@ function create() {
   });
   scoreText.setScrollFactor(0); // 카메라 이동 무시
 
+  function createButton(scene, x, y, text, originX, originY) {
+    // 배경 (둥근 사각형)
+    const bg = scene.add.graphics();
+    bg.fillStyle(0xffffff, 0.2); // 흰색, 투명도 0.2
+    bg.fillRoundedRect(-80, -30, 160, 60, 30); // x, y, width, height, radius
+    bg.lineStyle(2, 0xffffff, 0.3); // 테두리 약간
+    bg.strokeRoundedRect(-80, -30, 160, 60, 100);
+
+    // 텍스트
+    const label = scene.add
+      .text(0, 0, text, {
+        fontSize: "32px",
+        fontFamily: "Arial",
+        color: "#fff",
+      })
+      .setOrigin(0.5);
+
+    // 컨테이너로 묶기
+    const button = scene.add.container(x, y, [bg, label]);
+    button.setSize(160, 60);
+    button.setInteractive(
+      new Phaser.Geom.Rectangle(-80, -30, 160, 60),
+      Phaser.Geom.Rectangle.Contains
+    );
+
+    button.setOrigin?.(originX, originY); // 안전하게 origin 지원 여부 확인
+    button.setScrollFactor(0);
+
+    return button;
+  }
+
+  // 왼쪽 하단 (Jump)
+  jumpButton = createButton(this, 100, config.height - 50, "JUMP", 0.5, 1);
+
+  // 오른쪽 하단 (Slide)
+  slideButton = createButton(
+    this,
+    config.width - 100,
+    config.height - 50,
+    "SLIDE",
+    0.5,
+    1
+  );
+
   // 1초마다 점수 증가
   this.time.addEvent({
     delay: 1000,
@@ -143,7 +190,7 @@ function create() {
 
 function spawnObstacle() {
   const x = config.width + 100;
-  const y = config.height - 100;
+  const y = config.height - 150;
 
   const obstacle = obstacles.create(x, y, "obstacle");
   obstacle.setOrigin(0.5, 0.5);
@@ -211,6 +258,35 @@ function update(time, delta) {
         player.setVelocityY(-800);
         jumpCount++;
       }
+    }
+
+    if (
+      jumpButton
+        .getBounds()
+        .contains(this.input.activePointer.x, this.input.activePointer.y) &&
+      this.input.activePointer.isDown
+    ) {
+      if (jumpCount < 2) {
+        console.log(jumpCount);
+        player.setVelocityY(-800);
+        setTimeout(() => {
+          this.input.activePointer.isDown = false;
+          jumpCount++; // 버튼 누른 상태 초기화
+        }, 0); // 0.1초 후에 초기화
+      }
+    }
+
+    if (
+      slideButton
+        .getBounds()
+        .contains(this.input.activePointer.x, this.input.activePointer.y) &&
+      this.input.activePointer.isDown &&
+      jumpCount === 0
+    ) {
+      player.anims.play("slide", true);
+      player.body.setSize(player.width, player.height / 2, true);
+      player.body.setOffset(0, player.height / 2);
+      return;
     }
   } else {
     player.anims.stop();
