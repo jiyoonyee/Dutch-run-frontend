@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import playerImg from "./assets/kirbyRunSlide.png";
-import backgroundImg from "./assets/backimg.png";
+import backgroundImg from "./assets/background.png";
 import groundImg from "./assets/groundTile.png";
 import obstacleImg from "./assets/obstacle.png";
 import slideObstacleImg from "./assets/slideObstacle.png";
@@ -14,7 +14,7 @@ const config = {
     default: "arcade",
     arcade: {
       gravity: { y: 2000 },
-      debug: false,
+      debug: true,
     },
   },
   scale: {
@@ -30,8 +30,8 @@ var isMobile = /Mobi/i.test(window.navigator.userAgent);
 
 console.log("isMobile:", isMobile);
 
-document.querySelector(".my-high-score").textContent =
-  "High Score: " + window.localStorage.getItem("MaxScore");
+// document.querySelector(".my-high-score").textContent =
+//   "High Score: " + window.localStorage.getItem("MaxScore");
 
 let player;
 let cursors;
@@ -46,9 +46,13 @@ let gameOver = false;
 
 let jumpButton;
 let slideButton;
+let restartButton;
 
 const BACKGROUND_SCROLL_SPEED = 2;
 const GROUND_SCROLL_SPEED = 600; // px/sec (속도 일치용)
+
+let gameSpeed = 1; // 전체 게임 속도 배율
+const SPEED_INCREMENT = 0.001; // 매 프레임마다 증가량 (delta 기반)
 
 function preload() {
   this.load.image("background", backgroundImg);
@@ -67,11 +71,9 @@ function create() {
   background = this.add
     .tileSprite(0, 0, config.width, config.height, "background")
     .setOrigin(0, 0);
-  const bgImage = this.textures.get("background").getSourceImage();
-  const scaleX = config.width / bgImage.width;
-  const scaleY = config.height / bgImage.height;
-  const scale = Math.max(scaleX, scaleY);
-  background.setScale(scale).setScrollFactor(0);
+  // const bgImage = this.textures.get("background").getSourceImage();
+  // background.setDisplaySize(config.width, config.height);
+  // background.setOrigin(0, 0);
 
   cursors = this.input.keyboard.createCursorKeys();
 
@@ -114,7 +116,7 @@ function create() {
   score = 0;
   scoreText = this.add.text(16, 16, "Score: 0", {
     fontSize: "32px",
-    fill: "#000",
+    fill: "#fff",
     fontFamily: "Arial",
   });
   scoreText.setScrollFactor(0); // 카메라 이동 무시
@@ -139,9 +141,9 @@ function create() {
 
     // 컨테이너로 묶기
     const button = scene.add.container(x, y, [bg, label]);
-    button.setSize(160, 60);
+    button.setSize(220, 80); // 원하는 크기
     button.setInteractive(
-      new Phaser.Geom.Rectangle(-80, -30, 160, 60),
+      new Phaser.Geom.Rectangle(-0, -0, 220, 80),
       Phaser.Geom.Rectangle.Contains
     );
 
@@ -151,6 +153,34 @@ function create() {
     return button;
   }
 
+  restartButton = createButton(
+    this,
+    config.width / 2,
+    config.height / 2,
+    "RESTART",
+    0.5,
+    0.5
+  );
+  restartButton.setVisible(false);
+
+  restartButton.setInteractive();
+  restartButton.on("pointerdown", () => restartGame.call(this));
+
+  // 키보드 입력으로도 재시작
+  this.input.keyboard.on("keydown-SPACE", () => {
+    if (gameOver) restartGame.call(this);
+  });
+  this.input.keyboard.on("keydown-ENTER", () => {
+    if (gameOver) restartGame.call(this);
+  });
+
+  function restartGame() {
+    this.scene.restart();
+    jumpCount = 0;
+    score = 0;
+    gameOver = false;
+    gameSpeed = 1;
+  }
   // 왼쪽 하단 (Jump)
   if (isMobile) {
     jumpButton = createButton(this, 100, config.height - 50, "JUMP", 0.5, 1);
@@ -180,7 +210,7 @@ function create() {
   this.anims.create({
     key: "run",
     frames: this.anims.generateFrameNumbers("player", { start: 0, end: 9 }),
-    frameRate: 10,
+    frameRate: gameSpeed * 10,
     repeat: -1,
   });
 
@@ -232,6 +262,7 @@ function spawnObstacle() {
 function hitObstacle(player, obstacle) {
   if (!gameOver) {
     console.log("장애물에 부딪힘!");
+    restartButton.setVisible(true);
     this.physics.pause();
     player.setTint(0xff0000);
     gameOver = true;
@@ -239,8 +270,8 @@ function hitObstacle(player, obstacle) {
     if (score > (window.localStorage.getItem("MaxScore") || 0)) {
       window.localStorage.setItem("MaxScore", score);
 
-      document.querySelector(".my-high-score").textContent =
-        "High Score: " + window.localStorage.getItem("MaxScore");
+      // document.querySelector(".my-high-score").textContent =
+      //   "High Score: " + window.localStorage.getItem("MaxScore");
     }
 
     console.log("MaxScore:", window.localStorage.getItem("MaxScore"));
@@ -249,13 +280,17 @@ function hitObstacle(player, obstacle) {
 
 function update(time, delta) {
   if (!gameOver) {
+    // 매 프레임마다 게임 속도 조금씩 증가
+    gameSpeed += SPEED_INCREMENT * (delta / 16.67);
+    // (delta/16.67 → 60fps 보정)
+
     // 배경 스크롤
-    background.tilePositionX += BACKGROUND_SCROLL_SPEED;
+    background.tilePositionX += BACKGROUND_SCROLL_SPEED * gameSpeed;
 
     // 바닥 스크롤
     const TILE_WIDTH = 120;
     const totalGroundWidth = groundTiles.getChildren().length * TILE_WIDTH;
-    const move = (GROUND_SCROLL_SPEED * delta) / 1000;
+    const move = (GROUND_SCROLL_SPEED * gameSpeed * delta) / 1000;
 
     groundTiles.getChildren().forEach((tile) => {
       tile.x -= move;
@@ -266,6 +301,12 @@ function update(time, delta) {
         tile.body.updateFromGameObject();
       }
     });
+
+    obstacles.getChildren().forEach((obstacle) => {
+      obstacle.setVelocityX(-GROUND_SCROLL_SPEED * gameSpeed);
+    });
+
+    player.anims.timeScale = gameSpeed;
 
     // 장애물 통과 점수
     obstacles.getChildren().forEach((obstacle) => {
