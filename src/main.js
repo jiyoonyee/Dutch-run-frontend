@@ -12,7 +12,7 @@ const config = {
   physics: {
     default: "arcade",
     arcade: {
-      gravity: { y: 1500 },
+      gravity: { y: 2000 },
       debug: true,
     },
   },
@@ -28,8 +28,16 @@ new Phaser.Game(config);
 let player;
 let cursors;
 let groundTiles;
+let obstacles;
+let background;
 
 let jumpCount = 0;
+let score = 0;
+let scoreText;
+let gameOver = false;
+
+const BACKGROUND_SCROLL_SPEED = 2;
+const GROUND_SCROLL_SPEED = 600; // px/sec (속도 일치용)
 
 function preload() {
   this.load.image("background", backgroundImg);
@@ -42,13 +50,8 @@ function preload() {
   });
 }
 
-let obstacles;
-let background;
-// 배경과 바닥의 스크롤 속도를 각각 다르게 설정합니다.
-const backgroundScrollSpeed = 2; // 배경이 움직이는 속도
-const groundScrollSpeed = 10; // 바닥이 움직이는 속도
-
 function create() {
+  // 배경
   background = this.add
     .tileSprite(0, 0, config.width, config.height, "background")
     .setOrigin(0, 0);
@@ -60,48 +63,63 @@ function create() {
 
   cursors = this.input.keyboard.createCursorKeys();
 
-  // 바닥 타일 그룹
+  // 바닥
   groundTiles = this.physics.add.staticGroup();
-
-  // 타일의 크기를 상수로 정의
   const TILE_WIDTH = 120;
   const TILE_HEIGHT = 60;
-
-  // 화면을 채우고 여유를 둘 만큼의 타일 개수 계산
   const numTiles = Math.ceil(config.width / TILE_WIDTH) + 2;
-
   for (let i = 0; i < numTiles; i++) {
-    // 바닥에 맞춰 타일 배치. setOrigin(0, 0)을 사용해 왼쪽 상단을 기준으로 배치
     const tile = groundTiles.create(
       i * TILE_WIDTH,
       config.height - TILE_HEIGHT,
       "ground"
     );
-    tile.setDisplaySize(TILE_WIDTH, TILE_HEIGHT); // 크기 설정
-    tile.setOrigin(0, 0); // 원점을 왼쪽 상단으로 설정
-    tile.refreshBody(); // 물리 바디 업데이트
+    tile.setDisplaySize(TILE_WIDTH, TILE_HEIGHT);
+    tile.setOrigin(0, 0);
+    tile.refreshBody();
   }
 
   // 플레이어
   player = this.physics.add.sprite(100, 500, "player");
   player.setCollideWorldBounds(true);
-
   this.physics.add.collider(player, groundTiles, () => {
     jumpCount = 0;
   });
 
+  // 장애물 그룹
   obstacles = this.physics.add.group();
 
-  // 일정 시간마다 장애물 생성 (2초 간격)
   this.time.addEvent({
-    delay: 2000, // ms 단위
+    delay: 2000,
     callback: spawnObstacle,
     callbackScope: this,
     loop: true,
   });
 
-  // 플레이어와 장애물 충돌 처리
   this.physics.add.collider(player, obstacles, hitObstacle, null, this);
+
+  // 점수 표시
+  score = 0;
+  scoreText = this.add.text(16, 16, "Score: 0", {
+    fontSize: "32px",
+    fill: "#000",
+    fontFamily: "Arial",
+  });
+  scoreText.setScrollFactor(0); // 카메라 이동 무시
+
+  // 1초마다 점수 증가
+  this.time.addEvent({
+    delay: 1000,
+    callback: () => {
+      if (!gameOver) {
+        score += 10;
+        scoreText.setText("Score: " + score);
+      }
+    },
+    loop: true,
+  });
+
+  // 애니메이션
   this.anims.create({
     key: "run",
     frames: this.anims.generateFrameNumbers("player", { start: 0, end: 9 }),
@@ -127,72 +145,74 @@ function spawnObstacle() {
   const x = config.width + 100;
   const y = config.height - 100;
 
-  const obstacle = obstacles.create(x, y, "obstacle"); // ✅ key 사용
+  const obstacle = obstacles.create(x, y, "obstacle");
   obstacle.setOrigin(0.5, 0.5);
   obstacle.setDisplaySize(60, 100);
   obstacle.body.allowGravity = false;
-  obstacle.setVelocityX(-500);
+  obstacle.setVelocityX(-GROUND_SCROLL_SPEED);
+  obstacle.scored = false;
 }
 
-// 충돌했을 때 실행할 함수
 function hitObstacle(player, obstacle) {
   console.log("장애물에 부딪힘!");
-  this.physics.pause(); // 게임 정지
-  player.setTint(0xff0000); // 플레이어 빨간색으로 변함
-  player.anims.stop();
+  this.physics.pause();
+  player.setTint(0xff0000);
+  gameOver = true;
+  scoreText.setText("Game Over! Final Score: " + score);
 }
 
-function update() {
-  // Move the background to the left.
-  // const bgWidth = backgrounds[0].displayWidth;
-  // backgrounds.forEach((bg) => {
-  //   bg.x -= backgroundScrollSpeed;
-  //   // When the image goes off-screen, move it to the end.
-  //   if (bg.x + bgWidth <= 0) {
-  //     bg.x += bgWidth * backgrounds.length;
-  //   }
-  // });
+function update(time, delta) {
+  if (!gameOver) {
+    // 배경 스크롤
+    background.tilePositionX += BACKGROUND_SCROLL_SPEED;
 
-  background.tilePositionX += backgroundScrollSpeed;
-  // ---
-  // Scroll the ground tiles.
-  const TILE_WIDTH = 120;
-  // Calculate the total width of all tiles laid end-to-end.
-  const totalGroundWidth = groundTiles.getChildren().length * TILE_WIDTH;
+    // 바닥 스크롤
+    const TILE_WIDTH = 120;
+    const totalGroundWidth = groundTiles.getChildren().length * TILE_WIDTH;
+    const move = (GROUND_SCROLL_SPEED * delta) / 1000;
 
-  groundTiles.getChildren().forEach((tile) => {
-    tile.x -= groundScrollSpeed;
-    tile.body.updateFromGameObject();
-
-    // If a tile is completely off the left side of the screen,
-    // move it to the right to create a seamless loop.
-    if (tile.x < -TILE_WIDTH) {
-      tile.x += totalGroundWidth;
+    groundTiles.getChildren().forEach((tile) => {
+      tile.x -= move;
       tile.body.updateFromGameObject();
-    }
-  });
-  // ---
 
-  // Handle player animation and input.
-  if (cursors.down.isDown && jumpCount === 0) {
-    player.anims.play("slide", true);
-    player.body.setSize(player.width, player.height / 2, true);
-    player.body.setOffset(0, player.height / 2);
-    return;
+      if (tile.x < -TILE_WIDTH) {
+        tile.x += totalGroundWidth;
+        tile.body.updateFromGameObject();
+      }
+    });
+
+    // 장애물 통과 점수
+    obstacles.getChildren().forEach((obstacle) => {
+      if (!obstacle.scored && obstacle.x + obstacle.displayWidth < player.x) {
+        score += 50;
+        scoreText.setText("Score: " + score);
+        obstacle.scored = true;
+      }
+    });
+
+    player.anims.play("run", true);
+
+    // 플레이어 조작
+    if (cursors.down.isDown && jumpCount === 0) {
+      player.anims.play("slide", true);
+      player.body.setSize(player.width, player.height / 2, true);
+      player.body.setOffset(0, player.height / 2);
+      return;
+    } else {
+      player.body.setSize(player.width, player.height, true);
+      player.body.setOffset(0, 0);
+    }
+
+    if (
+      Phaser.Input.Keyboard.JustDown(cursors.up) ||
+      Phaser.Input.Keyboard.JustDown(cursors.space)
+    ) {
+      if (jumpCount < 2) {
+        player.setVelocityY(-800);
+        jumpCount++;
+      }
+    }
   } else {
-    player.body.setSize(player.width, player.height, true);
-    player.body.setOffset(0, 0);
-  }
-
-  player.anims.play("run", true);
-
-  if (
-    Phaser.Input.Keyboard.JustDown(cursors.up) ||
-    Phaser.Input.Keyboard.JustDown(cursors.space)
-  ) {
-    if (jumpCount < 2) {
-      player.setVelocityY(-640);
-      jumpCount++;
-    }
+    player.anims.stop();
   }
 }
