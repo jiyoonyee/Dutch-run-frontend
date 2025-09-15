@@ -115,6 +115,7 @@ function create() {
     fontFamily: "Arial",
   });
   scoreText.setScrollFactor(0); // 카메라 이동 무시
+  scoreText.setDepth(1000);
 
   function createButton(scene, x, y, text, originX, originY) {
     // 배경 (둥근 사각형)
@@ -197,38 +198,42 @@ function create() {
 function spawnObstacle() {
   const x = config.width + 150;
 
-  // 0 또는 1 랜덤 선택 (0: 점프 장애물, 1: 슬라이딩 장애물)
+  // 0: 점프용 장애물 / 1: 슬라이드용 장애물
   const type = Phaser.Math.Between(0, 1);
 
-  let y, height;
+  let y, height, key;
 
   if (type === 0) {
-    // 🟥 점프해야 피하는 장애물 (기존)
-    y = config.height - 100;
+    // 🟥 점프해야 피하는 장애물
+    key = "obstacle_high";
+    y = config.height - 100; // 바닥 근처
     height = 100;
   } else {
-    // 🟦 슬라이딩해야 피하는 장애물 (낮은 위치에)
-    y = config.height - 180; // 캐릭터 머리 높이에 맞게 위치
+    // 🟦 슬라이딩해야 피하는 장애물 (머리쪽 위치)
+    key = "obstacle_low";
+    y = config.height - 180; // 플레이어 머리 정도 위치
     height = 1000;
   }
 
-  const key = type === 0 ? "obstacle_high" : "obstacle_low";
   const obstacle = obstacles.create(x, y, key);
-  obstacle.setOrigin(0.5, 1); // 아랫부분을 기준으로 맞추기
-  obstacle.setDisplaySize(60, height);
+  obstacle.setOrigin(0.5, 1); // 아랫부분 기준
+  obstacle.setDisplaySize(80, height); // 크기 지정
   obstacle.body.allowGravity = false;
   obstacle.setVelocityX(-GROUND_SCROLL_SPEED);
   obstacle.scored = false;
-
-  // 타입 저장 (점프용인지, 슬라이딩용인지 확인 가능)
   obstacle.type = type;
+
+  // 🚩 body 다시 계산
+  obstacle.refreshBody();
 }
 function hitObstacle(player, obstacle) {
-  console.log("장애물에 부딪힘!");
-  this.physics.pause();
-  player.setTint(0xff0000);
-  gameOver = true;
-  scoreText.setText("Game Over! Final Score: " + score);
+  if (!gameOver) {
+    console.log("장애물에 부딪힘!");
+    this.physics.pause();
+    player.setTint(0xff0000);
+    gameOver = true;
+    scoreText.setText("Game Over! Final Score: " + score);
+  }
 }
 
 function update(time, delta) {
@@ -280,6 +285,14 @@ function update(time, delta) {
       if (jumpCount < 2) {
         player.setVelocityY(-800);
         jumpCount++;
+
+        // 슬라이드 상태 복구
+        player.body.setSize(player.width, player.height, true);
+        player.body.setOffset(0, 0);
+        player.anims.play("run", true);
+
+        // ✅ 점프 순간 강제로 충돌 재검사
+        this.physics.world.collide(player, obstacles, hitObstacle, null, this);
       }
     }
 
@@ -313,6 +326,18 @@ function update(time, delta) {
       player.body.setOffset(0, player.height / 2);
       return;
     }
+
+    // update 안에 추가
+    obstacles.getChildren().forEach((obstacle) => {
+      if (
+        Phaser.Geom.Intersects.RectangleToRectangle(
+          player.getBounds(),
+          obstacle.getBounds()
+        )
+      ) {
+        hitObstacle.call(this, player, obstacle);
+      }
+    });
   } else {
     player.anims.stop();
   }
