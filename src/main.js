@@ -3,6 +3,7 @@ import playerImg from "./assets/kirbyRunSlide.png";
 import backgroundImg from "./assets/backimg.png";
 import groundImg from "./assets/groundTile.png";
 import obstacleImg from "./assets/obstacle.png";
+import slideObstacleImg from "./assets/slideObstacle.png";
 
 const config = {
   type: Phaser.AUTO,
@@ -25,6 +26,10 @@ const config = {
 
 new Phaser.Game(config);
 
+var isMobile = /Mobi/i.test(window.navigator.userAgent);
+
+console.log("isMobile:", isMobile);
+
 let player;
 let cursors;
 let groundTiles;
@@ -45,7 +50,8 @@ const GROUND_SCROLL_SPEED = 600; // px/sec (속도 일치용)
 function preload() {
   this.load.image("background", backgroundImg);
   this.load.image("ground", groundImg);
-  this.load.image("obstacle", obstacleImg);
+  this.load.image("obstacle_high", obstacleImg);
+  this.load.image("obstacle_low", slideObstacleImg);
 
   this.load.spritesheet("player", playerImg, {
     frameWidth: 128,
@@ -142,17 +148,17 @@ function create() {
   }
 
   // 왼쪽 하단 (Jump)
-  jumpButton = createButton(this, 100, config.height - 50, "JUMP", 0.5, 1);
-
-  // 오른쪽 하단 (Slide)
-  slideButton = createButton(
-    this,
-    config.width - 100,
-    config.height - 50,
-    "SLIDE",
-    0.5,
-    1
-  );
+  if (isMobile) {
+    jumpButton = createButton(this, 100, config.height - 50, "JUMP", 0.5, 1);
+    slideButton = createButton(
+      this,
+      config.width - 100,
+      config.height - 50,
+      "SLIDE",
+      0.5,
+      1
+    );
+  }
 
   // 1초마다 점수 증가
   this.time.addEvent({
@@ -189,17 +195,34 @@ function create() {
 }
 
 function spawnObstacle() {
-  const x = config.width + 100;
-  const y = config.height - 150;
+  const x = config.width + 150;
 
-  const obstacle = obstacles.create(x, y, "obstacle");
-  obstacle.setOrigin(0.5, 0.5);
-  obstacle.setDisplaySize(60, 100);
+  // 0 또는 1 랜덤 선택 (0: 점프 장애물, 1: 슬라이딩 장애물)
+  const type = Phaser.Math.Between(0, 1);
+
+  let y, height;
+
+  if (type === 0) {
+    // 🟥 점프해야 피하는 장애물 (기존)
+    y = config.height - 100;
+    height = 100;
+  } else {
+    // 🟦 슬라이딩해야 피하는 장애물 (낮은 위치에)
+    y = config.height - 180; // 캐릭터 머리 높이에 맞게 위치
+    height = 1000;
+  }
+
+  const key = type === 0 ? "obstacle_high" : "obstacle_low";
+  const obstacle = obstacles.create(x, y, key);
+  obstacle.setOrigin(0.5, 1); // 아랫부분을 기준으로 맞추기
+  obstacle.setDisplaySize(60, height);
   obstacle.body.allowGravity = false;
   obstacle.setVelocityX(-GROUND_SCROLL_SPEED);
   obstacle.scored = false;
-}
 
+  // 타입 저장 (점프용인지, 슬라이딩용인지 확인 가능)
+  obstacle.type = type;
+}
 function hitObstacle(player, obstacle) {
   console.log("장애물에 부딪힘!");
   this.physics.pause();
@@ -261,6 +284,7 @@ function update(time, delta) {
     }
 
     if (
+      isMobile &&
       jumpButton
         .getBounds()
         .contains(this.input.activePointer.x, this.input.activePointer.y) &&
@@ -277,6 +301,7 @@ function update(time, delta) {
     }
 
     if (
+      isMobile &&
       slideButton
         .getBounds()
         .contains(this.input.activePointer.x, this.input.activePointer.y) &&
