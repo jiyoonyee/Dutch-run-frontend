@@ -14,7 +14,7 @@ const config = {
     default: "arcade",
     arcade: {
       gravity: { y: 2000 },
-      debug: true,
+      debug: false,
     },
   },
   scale: {
@@ -29,6 +29,9 @@ new Phaser.Game(config);
 var isMobile = /Mobi/i.test(window.navigator.userAgent);
 
 console.log("isMobile:", isMobile);
+
+document.querySelector(".my-high-score").textContent =
+  "High Score: " + window.localStorage.getItem("MaxScore");
 
 let player;
 let cursors;
@@ -233,6 +236,14 @@ function hitObstacle(player, obstacle) {
     player.setTint(0xff0000);
     gameOver = true;
     scoreText.setText("Game Over! Final Score: " + score);
+    if (score > (window.localStorage.getItem("MaxScore") || 0)) {
+      window.localStorage.setItem("MaxScore", score);
+
+      document.querySelector(".my-high-score").textContent =
+        "High Score: " + window.localStorage.getItem("MaxScore");
+    }
+
+    console.log("MaxScore:", window.localStorage.getItem("MaxScore"));
   }
 }
 
