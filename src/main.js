@@ -31,8 +31,8 @@ var isMobile = !/Mobi/i.test(window.navigator.userAgent);
 
 console.log("isMobile:", isMobile);
 
-// document.querySelector(".my-high-score").textContent =
-//   "High Score: " + window.localStorage.getItem("MaxScore");
+document.querySelector(".my-high-score").textContent =
+  "High Score: " + window.localStorage.getItem("MaxScore");
 
 let player;
 let cursors;
@@ -337,6 +337,8 @@ function hitObstacle(player, obstacle) {
 
     if (score > (window.localStorage.getItem("MaxScore") || 0)) {
       window.localStorage.setItem("MaxScore", score);
+      document.querySelector(".my-high-score").textContent =
+        "High Score: " + score;
     }
   }
 }
