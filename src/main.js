@@ -27,7 +27,7 @@ const config = {
 
 new Phaser.Game(config);
 
-var isMobile = !/Mobi/i.test(window.navigator.userAgent);
+var isMobile = /Mobi/i.test(window.navigator.userAgent);
 
 console.log("isMobile:", isMobile);
 
