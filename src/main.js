@@ -3,7 +3,7 @@ import playerImg from "./assets/kirbyRunSlide.png";
 import backgroundImg from "./assets/background.png";
 import groundImg from "./assets/groundTile.png";
 import obstacleImg from "./assets/obstacle.png";
-import slideObstacleImg from "./assets/slideObstacle.png";
+import slideObstacleImg from "./assets/potato.png";
 
 const config = {
   type: Phaser.AUTO,
@@ -234,7 +234,7 @@ function spawnObstacle() {
   // 0: 점프용 장애물 / 1: 슬라이드용 장애물
   const type = Phaser.Math.Between(0, 1);
 
-  let y, height, key;
+  let width, y, height, key;
 
   if (type === 0) {
     // 🟥 점프해야 피하는 장애물
@@ -246,6 +246,7 @@ function spawnObstacle() {
     key = "obstacle_low";
     y = config.height - 180; // 플레이어 머리 정도 위치
     height = 1000;
+    width = 80;
   }
 
   const obstacle = obstacles.create(x, y, key);
