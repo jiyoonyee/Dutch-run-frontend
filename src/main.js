@@ -4,6 +4,7 @@ import backgroundImg from "./assets/background.png";
 import groundImg from "./assets/groundTile.png";
 import obstacleImg from "./assets/obstacle.png";
 import slideObstacleImg from "./assets/potato.png";
+import heartImg from "./assets/heart.png";
 
 const config = {
   type: Phaser.AUTO,
@@ -26,7 +27,7 @@ const config = {
 
 new Phaser.Game(config);
 
-var isMobile = /Mobi/i.test(window.navigator.userAgent);
+var isMobile = !/Mobi/i.test(window.navigator.userAgent);
 
 console.log("isMobile:", isMobile);
 
@@ -38,6 +39,8 @@ let cursors;
 let groundTiles;
 let obstacles;
 let background;
+let lives = 3; // ❤️ 초기 목숨 개수
+let heartsUI = [];
 
 let jumpCount = 0;
 let score = 0;
@@ -54,12 +57,18 @@ const GROUND_SCROLL_SPEED = 600; // px/sec (속도 일치용)
 let gameSpeed = 1; // 전체 게임 속도 배율
 const SPEED_INCREMENT = 0.001; // 매 프레임마다 증가량 (delta 기반)
 
+let isInvincible = false;
+let invincibleTimer = null;
+
 function preload() {
   this.load.image("background", backgroundImg);
   this.load.image("ground", groundImg);
   this.load.image("obstacle_high", obstacleImg);
   this.load.image("obstacle_low", slideObstacleImg);
-
+  this.load.spritesheet("heart", heartImg, {
+    frameWidth: 150,
+    frameHeight: 150,
+  });
   this.load.spritesheet("player", playerImg, {
     frameWidth: 128,
     frameHeight: 128,
@@ -93,6 +102,8 @@ function create() {
     tile.refreshBody();
   }
 
+  // 하트
+
   // 플레이어
   player = this.physics.add.sprite(100, 500, "player");
   player.setCollideWorldBounds(true);
@@ -110,7 +121,7 @@ function create() {
     loop: true,
   });
 
-  this.physics.add.collider(player, obstacles, hitObstacle, null, this);
+  this.physics.add.overlap(player, obstacles, hitObstacle, null, this);
 
   // 점수 표시
   score = 0;
@@ -180,6 +191,9 @@ function create() {
     score = 0;
     gameOver = false;
     gameSpeed = 1;
+    lives = 3;
+    heartsUI = [];
+    isInvincible = false;
   }
   // 왼쪽 하단 (Jump)
   if (isMobile) {
@@ -196,10 +210,10 @@ function create() {
 
   // 1초마다 점수 증가
   this.time.addEvent({
-    delay: 1000,
+    delay: 10,
     callback: () => {
       if (!gameOver) {
-        score += 10;
+        score += 1;
         scoreText.setText("Score: " + score);
       }
     },
@@ -226,6 +240,26 @@ function create() {
     frameRate: 10,
     repeat: -1,
   });
+
+  this.anims.create({
+    key: "heart_pulse",
+    frames: this.anims.generateFrameNumbers("heart", { start: 0, end: 1 }),
+    frameRate: 2, // 깜박이는 속도 (1~10 정도 조절 가능)
+    repeat: -1,
+  });
+
+  // 하트 UI
+  for (let i = 0; i < lives; i++) {
+    let heart = this.add.sprite(config.width - 70 - i * 130, 60, "heart");
+    heart.setScrollFactor(0);
+    heart.setScale(0.8);
+    heart.setDepth(1000);
+
+    // ✅ 각 하트에 애니메이션 실행
+    heart.anims.play("heart_pulse");
+
+    heartsUI.push(heart);
+  }
 }
 
 function spawnObstacle() {
@@ -261,26 +295,54 @@ function spawnObstacle() {
   obstacle.refreshBody();
 }
 function hitObstacle(player, obstacle) {
-  if (!gameOver) {
-    console.log("장애물에 부딪힘!");
+  if (gameOver || isInvincible) return; // ✅ 무적이면 충돌 무시
+
+  console.log("장애물에 부딪힘!");
+  lives--;
+
+  // 하트 UI 업데이트
+  if (heartsUI[lives]) {
+    heartsUI[lives].setVisible(false);
+  }
+
+  // 무적 상태 진입
+  isInvincible = true;
+
+  // 깜빡임 효과
+  player.setTint(0xff0000);
+  this.tweens.add({
+    targets: player,
+    alpha: 0.3,
+    yoyo: true,
+    repeat: -1,
+    duration: 150,
+  });
+
+  // 1.5초 뒤 무적 해제
+  this.time.delayedCall(1500, () => {
+    isInvincible = false;
+    player.clearTint();
+    player.setAlpha(1);
+    this.tweens.killTweensOf(player);
+  });
+
+  // 라이프 다 닳으면 게임오버
+  if (lives <= 0) {
+    gameOver = true;
     restartButton.setVisible(true);
     this.physics.pause();
     player.setTint(0xff0000);
-    gameOver = true;
+    player.setAlpha(1);
     scoreText.setText("Game Over! Final Score: " + score);
+
     if (score > (window.localStorage.getItem("MaxScore") || 0)) {
       window.localStorage.setItem("MaxScore", score);
-
-      // document.querySelector(".my-high-score").textContent =
-      //   "High Score: " + window.localStorage.getItem("MaxScore");
     }
-
-    console.log("MaxScore:", window.localStorage.getItem("MaxScore"));
   }
 }
-
 function update(time, delta) {
   if (!gameOver) {
+    // this.anims.play("heart_pulse", true);
     // 매 프레임마다 게임 속도 조금씩 증가
     gameSpeed += SPEED_INCREMENT * (delta / 16.67);
     // (delta/16.67 → 60fps 보정)
@@ -312,6 +374,7 @@ function update(time, delta) {
     // 장애물 통과 점수
     obstacles.getChildren().forEach((obstacle) => {
       if (!obstacle.scored && obstacle.x + obstacle.displayWidth < player.x) {
+        console.log("점수 획득!");
         score += 50;
         scoreText.setText("Score: " + score);
         obstacle.scored = true;
@@ -345,7 +408,7 @@ function update(time, delta) {
         player.anims.play("run", true);
 
         // ✅ 점프 순간 강제로 충돌 재검사
-        this.physics.world.collide(player, obstacles, hitObstacle, null, this);
+        this.physics.add.overlap(player, obstacles, hitObstacle, null, this);
       }
     }
 
@@ -380,17 +443,19 @@ function update(time, delta) {
       return;
     }
 
-    // update 안에 추가
-    obstacles.getChildren().forEach((obstacle) => {
-      if (
-        Phaser.Geom.Intersects.RectangleToRectangle(
-          player.getBounds(),
-          obstacle.getBounds()
-        )
-      ) {
-        hitObstacle.call(this, player, obstacle);
-      }
-    });
+    // update 안
+    if (!isInvincible) {
+      obstacles.getChildren().forEach((obstacle) => {
+        if (
+          Phaser.Geom.Intersects.RectangleToRectangle(
+            player.getBounds(),
+            obstacle.getBounds()
+          )
+        ) {
+          hitObstacle.call(this, player, obstacle);
+        }
+      });
+    }
   } else {
     player.anims.stop();
   }
