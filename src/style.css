@@ -19,7 +19,7 @@ body {
 }
 
 #game-container {
-  height: 70%;
+  height: 90%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: 10px;

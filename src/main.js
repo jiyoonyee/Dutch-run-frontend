@@ -1,20 +1,22 @@
 import Phaser from "phaser";
-import playerImg from "./assets/kirbyRunSlide.png";
+import playerImg from "./assets/miffy.png";
 import backgroundImg from "./assets/background.png";
 import groundImg from "./assets/groundTile.png";
 import obstacleImg from "./assets/obstacle.png";
 import slideObstacleImg from "./assets/potato.png";
 import heartImg from "./assets/heart.png";
+import jumpButtonImg from "./assets/jumpButton.png";
+import slideButtonImg from "./assets/slideButton.png";
 
 const config = {
   type: Phaser.AUTO,
   parent: "game-container",
-  width: 1280,
+  width: 1500,
   height: 720,
   physics: {
     default: "arcade",
     arcade: {
-      gravity: { y: 2000 },
+      gravity: { y: 4500 },
       debug: true,
     },
   },
@@ -31,8 +33,8 @@ var isMobile = /Mobi/i.test(window.navigator.userAgent);
 
 console.log("isMobile:", isMobile);
 
-document.querySelector(".my-high-score").textContent =
-  "High Score: " + window.localStorage.getItem("MaxScore");
+// document.querySelector(".my-high-score").textContent =
+//   "High Score: " + window.localStorage.getItem("MaxScore");
 
 let player;
 let cursors;
@@ -65,13 +67,16 @@ function preload() {
   this.load.image("ground", groundImg);
   this.load.image("obstacle_high", obstacleImg);
   this.load.image("obstacle_low", slideObstacleImg);
+  this.load.image("jumpBtn", jumpButtonImg);
+  this.load.image("slideBtn", slideButtonImg);
+
   this.load.spritesheet("heart", heartImg, {
     frameWidth: 150,
     frameHeight: 150,
   });
   this.load.spritesheet("player", playerImg, {
-    frameWidth: 128,
-    frameHeight: 128,
+    frameWidth: 500,
+    frameHeight: 500,
   });
 }
 
@@ -105,10 +110,12 @@ function create() {
   // 하트
 
   // 플레이어
-  player = this.physics.add.sprite(100, 500, "player");
+  player = this.physics.add.sprite(420, 540, "player");
+  player.setScale(0.3);
   player.setCollideWorldBounds(true);
   this.physics.add.collider(player, groundTiles, () => {
     jumpCount = 0;
+    player.anims.play("run", true);
   });
 
   // 장애물 그룹
@@ -137,24 +144,24 @@ function create() {
     // 배경 (둥근 사각형)
     const bg = scene.add.graphics();
     bg.fillStyle(0xffffff, 0.2); // 흰색, 투명도 0.2
-    bg.fillRoundedRect(-80, -30, 160, 60, 30); // x, y, width, height, radius
+    bg.fillRoundedRect(-80, -30, 200, 120, 30); // x, y, width, height, radius
     bg.lineStyle(2, 0xffffff, 0.3); // 테두리 약간
-    bg.strokeRoundedRect(-80, -30, 160, 60, 100);
+    bg.strokeRoundedRect(-80, -30, 200, 120, 30);
 
     // 텍스트
     const label = scene.add
       .text(0, 0, text, {
-        fontSize: "32px",
+        fontSize: "64px",
         fontFamily: "Arial",
         color: "#fff",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.4, 0);
 
     // 컨테이너로 묶기
     const button = scene.add.container(x, y, [bg, label]);
-    button.setSize(220, 80); // 원하는 크기
+    button.setSize(440, 160); // 원하는 크기
     button.setInteractive(
-      new Phaser.Geom.Rectangle(-0, -0, 220, 80),
+      new Phaser.Geom.Rectangle(-0, -0, 440, 160),
       Phaser.Geom.Rectangle.Contains
     );
 
@@ -169,7 +176,7 @@ function create() {
     config.width / 2,
     config.height / 2,
     "RESTART",
-    0.5,
+    0.4,
     0.5
   );
   restartButton.setVisible(false);
@@ -196,16 +203,32 @@ function create() {
     isInvincible = false;
   }
   // 왼쪽 하단 (Jump)
+  // if (isMobile) {
+  //   jumpButton = createButton(this, 100, config.height - 100, "JUMP", 0.5, 1);
+  //   slideButton = createButton(
+  //     this,
+  //     config.width - 150,
+  //     config.height - 100,
+  //     "SLIDE",
+  //     0.5,
+  //     1
+  //   );
+  // }
+
   if (isMobile) {
-    jumpButton = createButton(this, 100, config.height - 50, "JUMP", 0.5, 1);
-    slideButton = createButton(
-      this,
-      config.width - 100,
-      config.height - 50,
-      "SLIDE",
-      0.5,
-      1
-    );
+    jumpButton = this.add
+      .image(180, config.height - 120, "jumpBtn")
+      .setInteractive()
+      .setScrollFactor(0)
+      .setDepth(1000)
+      .setScale(0.3); // 크기 조정 가능
+
+    slideButton = this.add
+      .image(config.width - 180, config.height - 120, "slideBtn")
+      .setInteractive()
+      .setScrollFactor(0)
+      .setDepth(1000)
+      .setScale(0.3);
   }
 
   // 1초마다 점수 증가
@@ -223,8 +246,8 @@ function create() {
   // 애니메이션
   this.anims.create({
     key: "run",
-    frames: this.anims.generateFrameNumbers("player", { start: 0, end: 9 }),
-    frameRate: gameSpeed * 10,
+    frames: this.anims.generateFrameNumbers("player", { start: 0, end: 34 }),
+    frameRate: gameSpeed * 30,
     repeat: -1,
   });
 
@@ -236,7 +259,21 @@ function create() {
 
   this.anims.create({
     key: "slide",
-    frames: this.anims.generateFrameNumbers("player", { start: 10, end: 10 }),
+    frames: this.anims.generateFrameNumbers("player", { start: 35, end: 35 }),
+    frameRate: 10,
+    repeat: -1,
+  });
+
+  this.anims.create({
+    key: "jump",
+    frames: this.anims.generateFrameNumbers("player", { start: 36, end: 36 }),
+    frameRate: 10,
+    repeat: -1,
+  });
+
+  this.anims.create({
+    key: "double_jump",
+    frames: this.anims.generateFrameNumbers("player", { start: 37, end: 37 }),
     frameRate: 10,
     repeat: -1,
   });
@@ -250,9 +287,9 @@ function create() {
 
   // 하트 UI
   for (let i = 0; i < lives; i++) {
-    let heart = this.add.sprite(config.width - 70 - i * 130, 60, "heart");
+    let heart = this.add.sprite(50 + i * 80, 100, "heart");
     heart.setScrollFactor(0);
-    heart.setScale(0.8);
+    heart.setScale(0.5);
     heart.setDepth(1000);
 
     // ✅ 각 하트에 애니메이션 실행
@@ -337,8 +374,8 @@ function hitObstacle(player, obstacle) {
 
     if (score > (window.localStorage.getItem("MaxScore") || 0)) {
       window.localStorage.setItem("MaxScore", score);
-      document.querySelector(".my-high-score").textContent =
-        "High Score: " + score;
+      // document.querySelector(".my-high-score").textContent =
+      //   "High Score: " + score;
     }
   }
 }
@@ -383,7 +420,11 @@ function update(time, delta) {
       }
     });
 
-    player.anims.play("run", true);
+    if (player.body.onFloor()) {
+      if (!player.anims.isPlaying || player.anims.currentAnim.key !== "run") {
+        player.anims.play("run", true);
+      }
+    }
 
     // 플레이어 조작
     if (cursors.down.isDown && jumpCount === 0) {
@@ -401,16 +442,18 @@ function update(time, delta) {
       Phaser.Input.Keyboard.JustDown(cursors.space)
     ) {
       if (jumpCount < 2) {
-        player.setVelocityY(-800);
+        if (jumpCount === 0) {
+          player.anims.play("jump", true); // 첫 점프 시 jump
+        } else {
+          player.anims.play("double_jump", true); // 두 번째 점프 시 double_jump
+        }
+
+        player.setVelocityY(-1200);
         jumpCount++;
 
         // 슬라이드 상태 복구
         player.body.setSize(player.width, player.height, true);
         player.body.setOffset(0, 0);
-        player.anims.play("run", true);
-
-        // ✅ 점프 순간 강제로 충돌 재검사
-        this.physics.add.overlap(player, obstacles, hitObstacle, null, this);
       }
     }
 
@@ -422,8 +465,13 @@ function update(time, delta) {
       this.input.activePointer.isDown
     ) {
       if (jumpCount < 2) {
+        if (jumpCount === 0) {
+          player.anims.play("jump", true); // 첫 점프 시 jump
+        } else {
+          player.anims.play("double_jump", true); // 두 번째 점프 시 double_jump
+        }
         console.log(jumpCount);
-        player.setVelocityY(-800);
+        player.setVelocityY(-1200);
         setTimeout(() => {
           this.input.activePointer.isDown = false;
           jumpCount++; // 버튼 누른 상태 초기화
