@@ -12,7 +12,7 @@ const config = {
   type: Phaser.AUTO,
   parent: "game-container",
   width: 1500,
-  height: 720,
+  height: 800,
   physics: {
     default: "arcade",
     arcade: {
@@ -33,8 +33,20 @@ var isMobile = /Mobi/i.test(window.navigator.userAgent);
 
 console.log("isMobile:", isMobile);
 
-// document.querySelector(".my-high-score").textContent =
-//   "High Score: " + window.localStorage.getItem("MaxScore");
+console.log("MaxScore:", window.localStorage.getItem("MaxScore"));
+
+// window.localStorage.setItem(
+//   "MaxScore",
+//   window.localStorage.getItem("MaxScore")
+//     ? window.localStorage.getItem("MaxScore")
+//     : 0
+// );
+
+document.querySelector(".my-high-score").textContent =
+  "High Score: " +
+  (window.localStorage.getItem("MaxScore")
+    ? window.localStorage.getItem("MaxScore")
+    : 0);
 
 let player;
 let cursors;
@@ -57,7 +69,7 @@ const BACKGROUND_SCROLL_SPEED = 2;
 const GROUND_SCROLL_SPEED = 600; // px/sec (속도 일치용)
 
 let gameSpeed = 1; // 전체 게임 속도 배율
-const SPEED_INCREMENT = 0.001; // 매 프레임마다 증가량 (delta 기반)
+const SPEED_INCREMENT = 0.0005; // 매 프레임마다 증가량 (delta 기반)
 
 let isInvincible = false;
 let invincibleTimer = null;
@@ -112,6 +124,9 @@ function create() {
   // 플레이어
   player = this.physics.add.sprite(420, 540, "player");
   player.setScale(0.3);
+  player.body.setSize(150, 300); // 폭 150, 높이 300
+  player.body.setOffset(50, 100); // 좌측·상단 기준으로 위치 보정
+
   player.setCollideWorldBounds(true);
   this.physics.add.collider(player, groundTiles, () => {
     jumpCount = 0;
@@ -374,8 +389,8 @@ function hitObstacle(player, obstacle) {
 
     if (score > (window.localStorage.getItem("MaxScore") || 0)) {
       window.localStorage.setItem("MaxScore", score);
-      // document.querySelector(".my-high-score").textContent =
-      //   "High Score: " + score;
+      document.querySelector(".my-high-score").textContent =
+        "High Score: " + score;
     }
   }
 }
